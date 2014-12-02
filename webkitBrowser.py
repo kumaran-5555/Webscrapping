@@ -263,7 +263,7 @@ class Browser(QWebView):
     # to stop
     # True - if the waited-for event has occurred
     # False - if max tries have reached
-    def waitTill(self, stopWaiting, maxTries=20):
+    def waitTill(self, stopWaiting, maxTries=20, timerStep=500):
         # convert to # of loops
         while not stopWaiting(self) and maxTries:
             maxTries = maxTries - 1
@@ -275,7 +275,7 @@ class Browser(QWebView):
             timer.timeout.connect(loop.quit)
             # start the timer and give .5 secs for the page to load
             # dynamic contents
-            timer.start(500)
+            timer.start(timerStep)
             loop.exec_()
         timer.stop()
         if not maxTries:
@@ -296,7 +296,7 @@ class Browser(QWebView):
         if afterClick:
             afterClick(self)
 
-    def clickElementTill(self, pattern, stopClicking, maxTries=20, afterClick=None):
+    def clickElementTill(self, pattern, stopClicking, maxTries=20, afterClick=None, timerStep=500):
         while not stopClicking(self) and maxTries:
             maxTries = maxTries - 1
             self.clickElement(pattern, afterClick=afterClick)
@@ -308,9 +308,9 @@ class Browser(QWebView):
             timer.timeout.connect(loop.quit)
             # start the timer and give .5 secs for the page to load
             # dynamic contents
-            timer.start(500)
+            timer.start(timerStep)
             loop.exec_()
-        timer.stop()
+            timer.stop()
         if not maxTries:
             # lof error
             scrapperUtils.scrapperLog(const.LogError, "Timeout")
@@ -328,7 +328,7 @@ class Browser(QWebView):
         if afterScroll:
             afterScroll(self)
 
-    def scrollPageTill(self, stopScrolling, maxTries=20, afterScroll=None):
+    def scrollPageTill(self, stopScrolling, maxTries=20, afterScroll=None, timerStep=500):
         while not stopScrolling(self) and maxTries:
             maxTries = maxTries - 1
             self.scrollPage(afterScroll=afterScroll)
@@ -340,7 +340,7 @@ class Browser(QWebView):
             timer.timeout.connect(loop.quit)
             # start the timer and give .5 secs for the page to load
             # dynamic contents
-            timer.start(500)
+            timer.start(timerStep)
             loop.exec_()
         timer.stop()
         if not maxTries:
