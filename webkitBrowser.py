@@ -117,7 +117,7 @@ class Browser(QWebView):
         - cap/timeout on clickwaits and scrollwaits
     """
 
-    def __init__(self, gui=False, loadImages=False, timeout=20):
+    def __init__(self, gui=False, loadImages=False, timeout=20, javaScriptEnabled=True):
         self.app = QApplication(sys.argv)  # must instantiate first
 
         webView = QWebView.__init__(self)
@@ -138,6 +138,7 @@ class Browser(QWebView):
         self.settings().setAttribute(QWebSettings.JavaEnabled, False)
         self.settings().setAttribute(QWebSettings.AutoLoadImages, loadImages)
         self.settings().setAttribute(QWebSettings.DeveloperExtrasEnabled, True)
+        self.settings().setAttribute(QWebSettings.JavascriptEnabled, javaScriptEnabled)
 
         self.urlChanged.connect(self.eventUrlChanged)
         self.defaultProxy = None
@@ -148,6 +149,7 @@ class Browser(QWebView):
     def __del__(self):
         # not sure why, but to avoid seg fault need to release the QWebPage manually
         self.setPage(None)
+
 
     # we would like to keep one browser object and reload new
     # pages with different proxy and cache config
@@ -211,6 +213,8 @@ class Browser(QWebView):
         timer.timeout.connect(loop.quit)
         self.loadFinished.connect(loop.quit)
 
+        # reset page content
+        self.setHtml('<html><head></head><body>No content loaded</body></html>', QUrl('http://localhost'))
         # load url
         self.load(QUrl(url))
 
