@@ -14,7 +14,7 @@ class ScrapperJob():
         :param version: suffix for all tables - to identfy different scrapping iterations
         :param dictionaryOfOptionalParameter: optional parameter which can be access in all user defined methods
         :param emptyOutputTable: boolean to drop all rows in output table if exist during initDbConnection, if false, outputSeedTable is assumed to exist
-        :param maxRetryAttempts: number of maximum retry attempts
+        :param maxRetryAttempts: number of maximum retry attempts per input seed
         :param minSuccessPercentage: minimum percentage of seeds that have to be processed sucessfully to stop/retrying the job
         :return: nothing - expections are not handled
         '''
@@ -32,6 +32,32 @@ class ScrapperJob():
         self.browser = None
         self.dbObject = None
         self.dbCursor = None
+        self.dbName = None
+        self.createSeedTableQuery = """CREATE TABLE IF NOT EXISTS `{database}`.`{outputSeedTable}` (
+            `seed` VARCHAR(1024) NULL,
+            `seed_id` INT NOT NULL AUTO_INCREMENT,
+            `parent_seed_table` VARCHAR(100) NULL,
+            `parent_seed_id` INT NULL,
+            `val` VARCHAR(4196) NULL,
+            `status` VARCHAR(10) NULL DEFAULT 'NONE',
+            `retry_count` INT NULL DEFAULT 0,
+            `start_time` DATETIME NULL,
+            `end_time` DATETIME NULL,
+            PRIMARY KEY (`seed_id`))
+            ENGINE = InnoDB;"""
+
+        self.dropSeedTableQuery = "DROP TABLE IF EXISTS `{database}`.`{outputSeedTable}` ;"
+
+        self.selectUnprocessedSeedsQuery = """SELECT seed, seed_id FROM `{database}`.`{inputSeedTable}`
+            WHERE (status like 'NONE') or (status like 'FAILED' and retry_count < {maxRetryAttempts});"""
+
+        self.updateInputSeedTableQuery = """UPDATE `{database}`.`{inputSeedTable}`
+            SET val = {data}, status = {status}, start_time={startTime}, end_time={endTime}, retryCount = retryCount + 1
+            WHERE seed_id == {seedId};"""
+
+        self.insertOutputSeedTableQuery = """INSERT INTO `{database}`.`{outputSeedTable}`
+            SET seed = {seed}, status = 'NONE', parent_seed_id = {parentSeedId}, parent_seed_table = {inputSeedTable};"""
+
 
     def initScrapperJob(self, gui=True, loadImages=False, javaScriptEnabled=False, host="kumaran-linux.cloudapp.net",
                         database="poject005-scrapper", user="project005", password="pivotproject005"):
@@ -49,6 +75,7 @@ class ScrapperJob():
         '''
         self.browser = webkitBrowser.Browser(gui=gui, loadImages=loadImages, javaScriptEnabled=javaScriptEnabled)
         self.dbObject = mysql.connector.connect(host=host, password=password, database=database, user=user)
+        self.dbName = database
         self.dbCursor = self.dbObject.cursor()
 
         # check for input tables and output tables
@@ -57,48 +84,48 @@ class ScrapperJob():
 
         # create output table, drop if required
         if self.empytOutputTable:
-            self.dbCursor.execute("DROP TABLE IF EXISTS `{database}`.`{outputSeedTable}` ;".format(database=database,
-                                                                                                   outputSeedTable=self.outputSeedTable))
+            self.dbCursor.execute(self.dropSeedTableQuery.format(database=database,
+                                                                 outputSeedTable=self.outputSeedTable))
             # create output table
-            self.dbCursor.execute("""CREATE TABLE IF NOT EXISTS `{database}`.`{outputSeedTable}` (
-            `seed` VARCHAR(1024) NULL,
-            `seed_id` INT NOT NULL AUTO_INCREMENT,
-            `parent_seed_table` VARCHAR(100) NULL,
-            `parent_seed_id` INT NULL,
-            `val` VARCHAR(4196) NULL,
-            `status` VARCHAR(10) NULL DEFAULT 'NONE',
-            `retry_count` INT NULL DEFAULT 0,
-            `start_time` DATETIME NULL,
-            `end_time` DATETIME NULL,
-            PRIMARY KEY (`seed_id`))
-            ENGINE = InnoDB;""".format(database=database, outputSeedTable=self.outputSeedTable))
+            self.dbCursor.execute(
+                self.createSeedTableQuery.format(database=database, outputSeedTable=self.outputSeedTable))
 
-    def startJob(self):
+        def startJob(self):
+            '''
+
+            runs in loop as long as it finds any input seeds
+            updates input and output seeds accordingly
+            exits when minSuccessPercentage is met /no input seeds
+
+            :return: nothing
+            '''
+            while True:
+                self.se
 
 
-    def collectData(self):
-        '''
-        will be called for each of unfinished/failed seeds
+        def collectData(self):
+            '''
+            will be called for each of unfinished/failed seeds
 
-        user should implement this method
-        load new seeds and collect data
-        when returing multiple data, use | separation
-        :return: return data and seeds collected from the current seed
-        :rtype: list(data, listOfSeeds)
-        '''
+            user should implement this method
+            load new seeds and collect data
+            when returing multiple data, use | separation
+            :return: return data and seeds collected from the current seed
+            :rtype: list(data, listOfSeeds)
+            '''
 
-        return None
+            return None
 
-    def validateData(self, dataString, listOfSeeds):
-        '''
-        called after collectData() for each seed
+        def validateData(self, dataString, listOfSeeds):
+            '''
+            called after collectData() for each seed
 
-        user should implement this method
-        :param dataString: data collected from the current seed
-        :param listOfSeeds: seeds collected from the current seed
-        :return: true if validation succeeds, false if validation fails
-        :rtype: bool
-        '''
+            user should implement this method
+            :param dataString: data collected from the current seed
+            :param listOfSeeds: seeds collected from the current seed
+            :return: true if validation succeeds, false if validation fails
+            :rtype: bool
+            '''
 
 
 
