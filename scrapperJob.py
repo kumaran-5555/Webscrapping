@@ -61,16 +61,17 @@ class ScrapperJob():
                                                                                                    outputSeedTable=self.outputSeedTable))
             # create output table
             self.dbCursor.execute("""CREATE TABLE IF NOT EXISTS `{database}`.`{outputSeedTable}` (
-                `seed` VARCHAR(1024) NOT NULL,
-                `val` VARCHAR(4196) NULL,
-                `status` VARCHAR(20) NULL,
-                `parent_seed` VARCHAR(1024) NULL,
-                `retry_count` INT NULL DEFAULT 0,
-                `start_time` DATETIME NULL,
-                `end_time` DATETIME NULL,
-                `parent_seed_table` VARCHAR(100) NULL,
-                PRIMARY KEY (`seed`, `parent_seed`, `parent_seed_table`))
-                ENGINE = InnoDB;""".format(database=database, outputSeedTable=self.outputSeedTable))
+            `seed` VARCHAR(1024) NULL,
+            `seed_id` INT NOT NULL AUTO_INCREMENT,
+            `parent_seed_table` VARCHAR(100) NULL,
+            `parent_seed_id` INT NULL,
+            `val` VARCHAR(4196) NULL,
+            `status` VARCHAR(10) NULL DEFAULT 'NONE',
+            `retry_count` INT NULL DEFAULT 0,
+            `start_time` DATETIME NULL,
+            `end_time` DATETIME NULL,
+            PRIMARY KEY (`seed_id`))
+            ENGINE = InnoDB;""".format(database=database, outputSeedTable=self.outputSeedTable))
 
     def startJob(self):
 
