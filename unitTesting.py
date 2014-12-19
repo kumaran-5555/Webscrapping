@@ -5,12 +5,9 @@ import scrapperJob
 
 
 class unitTestScrapperJob(scrapperJob.ScrapperJob):
-    def __init__(self, inputSeedTableName, outputSeedTable, jobName, optionalParameters={},
-                 emptyOutputTable=True, maxRetryAttempts=5, minSuccessPercentage=1):
+    def __init__(self):
 
-        super().__init__(inputSeedTableName, outputSeedTable, jobName, optionalParameters=optionalParameters,
-                         emptyOutputTable=emptyOutputTable, maxRetryAttempts=maxRetryAttempts,
-                         minSuccessPercentage=minSuccessPercentage)
+        super().__init__()
 
     def collectData(self, seed):
         return ["d1|d2|d3", ["s1", "s2"]]
@@ -19,8 +16,8 @@ class unitTestScrapperJob(scrapperJob.ScrapperJob):
         return True
 
 
-job = unitTestScrapperJob("mobiles_home_seed", "mobile_brands_seed", "Mobile brands")
+job = unitTestScrapperJob()
 
-job.initScrapperJob(database="project005_scrapping_20141216")
+job.initScrapperJob("mobiles_home_seed", "mobile_brands_seed", "Mobile brands", database="project005_scrapping_20141216")
 
 job.startJob()
