@@ -4,7 +4,7 @@ import datetime
 
 import mysql.connector
 
-import webkitBrowser
+# import webkitBrowser
 
 
 class ScrapperJob():
@@ -42,7 +42,7 @@ class ScrapperJob():
             `seed_id` INT NOT NULL AUTO_INCREMENT,
             `parent_seed_table` VARCHAR(100) NULL,
             `parent_seed_id` INT NULL,
-            `val` VARCHAR(4196) NULL,
+            `value` VARCHAR(4196) NULL,
             `status` VARCHAR(10) NULL DEFAULT 'NONE',
             `retry_count` INT NULL DEFAULT 0,
             `start_time` DATETIME NULL,
@@ -56,11 +56,11 @@ class ScrapperJob():
             WHERE (status like 'NONE') or (status like 'FAILED' and retry_count < {maxRetryAttempts});"""
 
         self.updateInputSeedTableQuery = """UPDATE `{database}`.`{inputSeedTable}`
-            SET val = {data}, status = {status}, start_time={startTime}, end_time={endTime}, retryCount = retryCount + 1
-            WHERE seed_id == {seedId};"""
+            SET value = \'{data}\', status = \'{status}\', start_time=\'{startTime}\', end_time=\'{endTime}\', retry_count = retry_count + 1
+            WHERE seed_id = {seedId};"""
 
         self.insertOutputSeedTableQuery = """INSERT INTO `{database}`.`{outputSeedTable}`
-            SET seed = {seed}, status = 'NONE', parent_seed_id = {parentSeedId}, parent_seed_table = {inputSeedTable};"""
+            SET seed = \'{seed}\', status = \'NONE\', parent_seed_id = {parentSeedId}, parent_seed_table = \'{parentSeedTable}\';"""
 
 
     def initScrapperJob(self, gui=False, loadImages=False, javaScriptEnabled=True, host="kumaran-linux.cloudapp.net",
@@ -77,7 +77,7 @@ class ScrapperJob():
         :return: nothing - exceptions are not handled
         :except: db connection related errors, browser initialization errors
         '''
-        self.browser = webkitBrowser.Browser(gui=gui, loadImages=loadImages, javaScriptEnabled=javaScriptEnabled)
+        # self.browser = webkitBrowser.Browser(gui=gui, loadImages=loadImages, javaScriptEnabled=javaScriptEnabled)
         self.dbObject = mysql.connector.connect(host=host, password=password, database=database, user=user)
         self.dbName = database
         self.dbCursor = self.dbObject.cursor()
@@ -107,8 +107,9 @@ class ScrapperJob():
         logReason = ""
         while True:
             self.dbCursor.execute(
-                self.selectUnprocessedSeedsQuery.format(database=self.dbName, inputSeedTable=self.inputSeedTable))
-            self.unprocessedSeeds = self.dbCursor.fetchAll()
+                self.selectUnprocessedSeedsQuery.format(database=self.dbName, inputSeedTable=self.inputSeedTable,
+                                                        maxRetryAttempts=self.maxRetryAttempts))
+            self.unprocessedSeeds = self.dbCursor.fetchall()
 
             if self.totalInputSeeds is None:
                 self.totalInputSeeds = len(self.unprocessedSeeds)
@@ -128,24 +129,33 @@ class ScrapperJob():
                     # update success state
                     self.dbCursor.execute(
                         self.updateInputSeedTableQuery.format(database=self.dbName, inputSeedTable=self.inputSeedTable,
-                                                              data=data, startTime=startTime, endtime=endTime,
+                                                              data=data, startTime=startTime, endTime=endTime,
                                                               status="SUCCESS", seedId=seedId))
+                    # add output seeds
+                    self.dbCursor.execute(
+                        self.insertOutputSeedTableQuery(database=self.dbName, outputSeedTable=self.outputSeedTable,
+                                                        seed=seed, parentSeedId=seedId,
+                                                        parentSeedId=self.inputSeedTable))
+
                 else:
                     # update success failure
                     self.dbCursor.execute(
                         self.updateInputSeedTableQuery.format(database=self.dbName, inputSeedTable=self.inputSeedTable,
-                                                              data="", startTime=startTime, endtime=endTime,
+                                                              data="", startTime=startTime, endTime=endTime,
                                                               status="FAILED", seedId=seedId))
                 self.dbObject.commit()
 
             # if min successful percentage is achieved, do go for retry loop
             # mostly to save time
-            if self.totalSuccesses / self.totalInputSeeds >= self.minSuccessPercentage:
+            if self.totalInputSeeds > 0 and self.totalSuccesses / self.totalInputSeeds >= self.minSuccessPercentage:
                 logReason = "Reached minSuccessPercentage"
                 break
 
         # log jobs status
-        print("Job Name "+self.jobName+"Status: "+logReason)
+        print("Job Name " + self.jobName + "Status: " + logReason + "TotalInputs:" + str(
+            self.totalInputSeeds) + " TotalSuccess: " + str(self.totalSuccesses))
+        self.dbCursor.close()
+
 
     def collectData(self, seed):
         '''
@@ -172,7 +182,7 @@ class ScrapperJob():
         :rtype: bool
         '''
 
-        return True
+        return False
 
 
 

@@ -1,8 +1,13 @@
 #!/usr/bin/python
 __author__ = 'serajago'
 
-import sys
 
-if len(sys.argv) != 2:
-    print("Usage: " + sys.argv[0] + "<><>")
-    sys.exit(1)
+import scrapperJob
+
+job = scrapperJob.ScrapperJob(inputSeedTableName="mobiles_home_seed", jobName="Mobile brands", outputSeedTable="mobile_brands_seed")
+
+
+job.initScrapperJob(database="project005_scrapping_20141216")
+
+
+job.startJob()
