@@ -8,6 +8,7 @@ import mysql.connector
 
 
 class ScrapperJob():
+
     def __init__(self, inputSeedTableName, outputSeedTable, jobName, optionalParameters={},
                  emptyOutputTable=True, maxRetryAttempts=5, minSuccessPercentage=1):
         '''
@@ -131,11 +132,13 @@ class ScrapperJob():
                         self.updateInputSeedTableQuery.format(database=self.dbName, inputSeedTable=self.inputSeedTable,
                                                               data=data, startTime=startTime, endTime=endTime,
                                                               status="SUCCESS", seedId=seedId))
-                    # add output seeds
-                    self.dbCursor.execute(
-                        self.insertOutputSeedTableQuery(database=self.dbName, outputSeedTable=self.outputSeedTable,
-                                                        seed=seed, parentSeedId=seedId,
-                                                        parentSeedId=self.inputSeedTable))
+                    for s in listOfSeeds:
+                        # add output seeds
+                        self.dbCursor.execute(
+                            self.insertOutputSeedTableQuery.format(database=self.dbName,
+                                                                   outputSeedTable=self.outputSeedTable,
+                                                                   seed=s, parentSeedId=seedId,
+                                                                   parentSeedTable=self.inputSeedTable))
 
                 else:
                     # update success failure
@@ -182,7 +185,7 @@ class ScrapperJob():
         :rtype: bool
         '''
 
-        return False
+        return True
 
 
 
