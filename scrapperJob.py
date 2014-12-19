@@ -1,31 +1,34 @@
 __author__ = 'serajago'
 
+import datetime
+
 import mysql.connector
+
 import webkitBrowser
 
 
 class ScrapperJob():
-    def __init__(self, inputSeedTableName, outputSeedTable, version, dictionaryOfOptionalParameter={},
-                 emptyOutputTable=True, maxRetryAttempts=5, minSuccessPercentage=0.95):
+    def __init__(self, inputSeedTableName, outputSeedTable, jobName, optionalParameters={},
+                 emptyOutputTable=True, maxRetryAttempts=5, minSuccessPercentage=1):
         '''
 
         :param inputSeedTableName: name of the table which has seed to be processed
         :param outputSeedTable:  name of the table to store newly discovered seeds
-        :param version: suffix for all tables - to identfy different scrapping iterations
-        :param dictionaryOfOptionalParameter: optional parameter which can be access in all user defined methods
+        :param jobName: used in loggin to identify what job is this
+        :param optionalParameters: optional parameters which can be access in all user defined methods
         :param emptyOutputTable: boolean to drop all rows in output table if exist during initDbConnection, if false, outputSeedTable is assumed to exist
         :param maxRetryAttempts: number of maximum retry attempts per input seed
         :param minSuccessPercentage: minimum percentage of seeds that have to be processed sucessfully to stop/retrying the job
         :return: nothing - expections are not handled
         '''
-        self.optionalParamter = dictionaryOfOptionalParameter
+        self.optionalParameters = optionalParameters
         self.inputSeedTable = inputSeedTableName
         self.outputSeedTable = outputSeedTable
-        self.version = version
-        self.totalInputSeeds = 0
-        self.totalOutputSeeds = 0
+        self.jobName = jobName
+        self.totalInputSeeds = None
+        self.totalOutputSeeds = None
         self.totalSuccesses = 0
-        self.empytOutputTable = emptyOutputTable
+        self.emptyOutputTable = emptyOutputTable
         self.maxRetryAttempts = maxRetryAttempts
         self.currentRetryAttempts = 0
         self.minSuccessPercentage = minSuccessPercentage
@@ -33,6 +36,7 @@ class ScrapperJob():
         self.dbObject = None
         self.dbCursor = None
         self.dbName = None
+        self.unprocessedSeeds = None
         self.createSeedTableQuery = """CREATE TABLE IF NOT EXISTS `{database}`.`{outputSeedTable}` (
             `seed` VARCHAR(1024) NULL,
             `seed_id` INT NOT NULL AUTO_INCREMENT,
@@ -59,7 +63,7 @@ class ScrapperJob():
             SET seed = {seed}, status = 'NONE', parent_seed_id = {parentSeedId}, parent_seed_table = {inputSeedTable};"""
 
 
-    def initScrapperJob(self, gui=True, loadImages=False, javaScriptEnabled=False, host="kumaran-linux.cloudapp.net",
+    def initScrapperJob(self, gui=False, loadImages=False, javaScriptEnabled=True, host="kumaran-linux.cloudapp.net",
                         database="poject005-scrapper", user="project005", password="pivotproject005"):
         '''
 
@@ -83,7 +87,7 @@ class ScrapperJob():
         # create output table if doesn't exist
 
         # create output table, drop if required
-        if self.empytOutputTable:
+        if self.emptyOutputTable:
             self.dbCursor.execute(self.dropSeedTableQuery.format(database=database,
                                                                  outputSeedTable=self.outputSeedTable))
             # create output table
@@ -100,38 +104,76 @@ class ScrapperJob():
 
         :return: nothing
         '''
+        logReason = ""
         while True:
-            self.dbCursor.execute(self.selectUnprocessedSeedsQuery.format(database= self.dbName, inputSeedTable = self.inputSeedTable))
+            self.dbCursor.execute(
+                self.selectUnprocessedSeedsQuery.format(database=self.dbName, inputSeedTable=self.inputSeedTable))
+            self.unprocessedSeeds = self.dbCursor.fetchAll()
 
+            if self.totalInputSeeds is None:
+                self.totalInputSeeds = len(self.unprocessedSeeds)
 
+            # check if there are seeds to process otherwise exit
+            if len(self.unprocessedSeeds) == 0:
+                logReason = "No More Inputs"
+                break
 
-            break
+            for seed, seedId in self.unprocessedSeeds:
+                startTime = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+                (data, listOfSeeds) = self.collectData(seed)
+                status = self.validateData(data, listOfSeeds)
+                endTime = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+                if status:
+                    self.totalSuccesses += 1
+                    # update success state
+                    self.dbCursor.execute(
+                        self.updateInputSeedTableQuery.format(database=self.dbName, inputSeedTable=self.inputSeedTable,
+                                                              data=data, startTime=startTime, endtime=endTime,
+                                                              status="SUCCESS", seedId=seedId))
+                else:
+                    # update success failure
+                    self.dbCursor.execute(
+                        self.updateInputSeedTableQuery.format(database=self.dbName, inputSeedTable=self.inputSeedTable,
+                                                              data="", startTime=startTime, endtime=endTime,
+                                                              status="FAILED", seedId=seedId))
+                self.dbObject.commit()
 
+            # if min successful percentage is achieved, do go for retry loop
+            # mostly to save time
+            if self.totalSuccesses / self.totalInputSeeds >= self.minSuccessPercentage:
+                logReason = "Reached minSuccessPercentage"
+                break
 
+        # log jobs status
+        print("Job Name "+self.jobName+"Status: "+logReason)
 
-        def collectData(self):
-            '''
-            will be called for each of unfinished/failed seeds
+    def collectData(self, seed):
+        '''
+        will be called for each of unfinished/failed seeds
 
-            user should implement this method
-            load new seeds and collect data
-            when returing multiple data, use | separation
-            :return: return data and seeds collected from the current seed
-            :rtype: list(data, listOfSeeds)
-            '''
+        user should implement this method
+        load new seeds and collect data
+        when returing multiple data, use | separation
+        :param seed: current seed value that is being processed
+        :return: return data and seeds collected from the current seed
+        :rtype: list(data, listOfSeeds)
+        '''
 
-            return None
+        return ["data1|data2|data3", ["seed1", "seed2"]]
 
-        def validateData(self, dataString, listOfSeeds):
-            '''
-            called after collectData() for each seed
+    def validateData(self, dataString, listOfSeeds):
+        '''
+        called after collectData() for each seed
 
-            user should implement this method
-            :param dataString: data collected from the current seed
-            :param listOfSeeds: seeds collected from the current seed
-            :return: true if validation succeeds, false if validation fails
-            :rtype: bool
-            '''
+        user should implement this method
+        :param dataString: data collected from the current seed
+        :param listOfSeeds: seeds collected from the current seed
+        :return: true if validation succeeds, false if validation fails
+        :rtype: bool
+        '''
+
+        return True
+
 
 
 
