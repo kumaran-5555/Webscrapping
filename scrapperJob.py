@@ -90,17 +90,23 @@ class ScrapperJob():
             self.dbCursor.execute(
                 self.createSeedTableQuery.format(database=database, outputSeedTable=self.outputSeedTable))
 
-        def startJob(self):
-            '''
 
-            runs in loop as long as it finds any input seeds
-            updates input and output seeds accordingly
-            exits when minSuccessPercentage is met /no input seeds
+    def startJob(self):
+        '''
 
-            :return: nothing
-            '''
-            while True:
-                self.se
+        runs in loop as long as it finds any input seeds
+        updates input and output seeds accordingly
+        exits when minSuccessPercentage is met /no input seeds
+
+        :return: nothing
+        '''
+        while True:
+            self.dbCursor.execute(self.selectUnprocessedSeedsQuery.format(database= self.dbName, inputSeedTable = self.inputSeedTable))
+
+
+
+            break
+
 
 
         def collectData(self):
