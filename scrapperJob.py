@@ -4,7 +4,7 @@ import datetime
 
 import mysql.connector
 
-# import webkitBrowser
+import webkitBrowser
 
 
 class ScrapperJob():
@@ -62,8 +62,8 @@ class ScrapperJob():
 
 
     def initScrapperJob(self, inputSeedTableName, outputSeedTable, jobName, optionalParameters={},
-                        emptyOutputTable=True, maxRetryAttempts=5, minSuccessPercentage=1, gui=False, loadImages=False,
-                        javaScriptEnabled=True, host="kumaran-linux.cloudapp.net",
+                        emptyOutputTable=False, maxRetryAttempts=5, minSuccessPercentage=1, gui=False, loadImages=False,
+                        javaScriptEnabled=True, host="project005.cloudapp.net",
                         database="poject005-scrapper", user="project005", password="pivotproject005",
                         scraperJobsLogsTable="scrapper_job_log"):
         """
@@ -98,7 +98,7 @@ class ScrapperJob():
         self.currentRetryAttempts = 0
         self.minSuccessPercentage = minSuccessPercentage
         self.scraperJobsLogsTable = scraperJobsLogsTable
-        # self.browser = webkitBrowser.Browser(gui=gui, loadImages=loadImages, javaScriptEnabled=javaScriptEnabled)
+        self.browser = webkitBrowser.Browser(gui=gui, loadImages=loadImages, javaScriptEnabled=javaScriptEnabled)
         self.dbObject = mysql.connector.connect(host=host, password=password, database=database, user=user)
         self.dbName = database
         self.dbCursor = self.dbObject.cursor()
@@ -106,21 +106,19 @@ class ScrapperJob():
         # check for input tables and output tables
         # if input table is not present raise exception
         # create output table if doesn't exist
-
-        # create output table, drop if required
+        self.dbCursor.execute(
+            self.createSeedTableQuery.format(database=database, outputSeedTable=self.outputSeedTable))
         if self.emptyOutputTable:
-            self.dbCursor.execute(self.dropSeedTableQuery.format(database=database,
-                                                                 outputSeedTable=self.outputSeedTable))
-            # create output table
             self.dbCursor.execute(
-                self.createSeedTableQuery.format(database=database, outputSeedTable=self.outputSeedTable))
+                self.dropSeedTableQuery.format(database=database, outputSeedTable=self.outputSeedTable))
+
 
     def logScrapperState(self):
         self.dbCursor.execute(
             self.insertLogEventQuery.format(database=self.dbName, scraperJobsLogsTable=self.scraperJobsLogsTable,
                                             logEvent=self.scrapperState,
                                             logTime=datetime.datetime.now().strftime("%Y%m%d%H%M%S"),
-                                            jobName=self.dbName, totalCount=self.totalInputSeeds,
+                                            jobName=self.jobName, totalCount=self.totalInputSeeds,
                                             processedCount=self.totalSuccesses))
         self.dbObject.commit()
 
@@ -138,7 +136,14 @@ class ScrapperJob():
             self.dbCursor.execute(
                 self.selectUnprocessedSeedsQuery.format(database=self.dbName, inputSeedTable=self.inputSeedTable,
                                                         maxRetryAttempts=self.maxRetryAttempts))
-            self.unprocessedSeeds = self.dbCursor.fetchall()
+            self.unprocessedSeeds = []
+            # fetch rows in 100's this to aovid SQL error
+            while True:
+                tempList = self.dbCursor.fetchmany(size=100)
+                if len(tempList) == 0:
+                    break
+                self.unprocessedSeeds = self.unprocessedSeeds + tempList
+
 
             if self.totalInputSeeds is None:
                 self.totalInputSeeds = len(self.unprocessedSeeds)
@@ -152,6 +157,7 @@ class ScrapperJob():
             for seed, seedId in self.unprocessedSeeds:
                 startTime = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
                 (data, listOfSeeds) = self.collectData(seed)
+                data = data.replace("\'", "\\\'")
                 status = self.validateData(data, listOfSeeds)
                 endTime = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
                 if status:
@@ -198,7 +204,7 @@ class ScrapperJob():
 
         user should implement this method
         load new seeds and collect data
-        when returing multiple data, use | separation
+        when returing multiple data, use any string format json/psv to store
         :param seed: current seed value that is being processed
         :return: return data and seeds collected from the current seed
         :rtype: list(data, listOfSeeds)
